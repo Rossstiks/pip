@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const { generateTags } = require('./openai');
 
 const app = express();
 app.use(bodyParser.json());
@@ -32,11 +33,20 @@ app.get('/api/templates/index', (req, res) => {
   res.json(index);
 });
 
-app.post('/api/templates', (req, res) => {
-  const { title, fileUrl, description, tags } = req.body;
+app.post('/api/templates', async (req, res) => {
+  const { title, fileUrl, description, tags = [] } = req.body;
+  let finalTags = tags;
+  if (!finalTags.length && description) {
+    try {
+      finalTags = await generateTags(description);
+    } catch (err) {
+      console.error('OpenAI tag generation failed', err.message);
+    }
+  }
+
   const data = loadData();
   const id = data.templates.length ? data.templates[data.templates.length - 1].id + 1 : 1;
-  const template = { id, title, fileUrl, description, tags, createdAt: new Date().toISOString() };
+  const template = { id, title, fileUrl, description, tags: finalTags, createdAt: new Date().toISOString() };
   data.templates.push(template);
   saveData(data);
   res.status(201).json(template);
